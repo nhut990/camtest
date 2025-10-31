@@ -408,6 +408,17 @@
     photoImg.src = "";
   }
 
+  function getCurrentDatetimeString() {
+    const now = new Date();
+    const pad = n => String(n).padStart(2,"0");
+    const h = pad(now.getHours());
+    const m = pad(now.getMinutes());
+    const d = pad(now.getDate());
+    const mo = pad(now.getMonth()+1);
+    const y = now.getFullYear();
+    return `${h}:${m} ${d}-${mo}-${y}`;
+  }
+
   captureBtn.addEventListener('click', function(){
     if(!videoPreview.srcObject) return;
     const video = videoPreview;
@@ -420,21 +431,46 @@
     const ctx = photoCanvas.getContext('2d');
     ctx.drawImage(video, 0, 0, w, h);
 
-    // Thêm chữ vào góc phải dưới
-    const text = "Created by Minh Nhut";
+    // Chuẩn bị nội dung chữ
+    const text1 = "Created by Minh Nhut";
+    const text2 = getCurrentDatetimeString();
+    // Cài đặt font đẹp rõ nét, có viền đen dễ đọc trên mọi nền
     ctx.save();
-    ctx.font = "bold 16px Arial";
+    ctx.font = "bold 18px 'Segoe UI', Arial, Helvetica, sans-serif";
     ctx.textBaseline = "bottom";
     ctx.textAlign = "right";
-    ctx.fillStyle = "rgba(0,0,0,0.45)";
-    // Vẽ nền chữ mờ
-    const metrics = ctx.measureText(text);
-    const padding = 8;
-    const textHeight = 20;
-    ctx.fillRect(w - metrics.width - padding - 4, h - textHeight - 8, metrics.width + padding, textHeight + 8);
-    // Vẽ chữ trắng
-    ctx.fillStyle = "#fff";
-    ctx.fillText(text, w - 8, h - 12);
+    const colorStroke = "#222";
+    const colorFill = "#fff";
+    // Đo kích thước chữ để vẽ nền
+    const metrics1 = ctx.measureText(text1);
+    const metrics2 = ctx.measureText(text2);
+    const padding = 10;
+    const lineGap = 6;
+    const textHeight = 22;
+    const totalHeight = textHeight*2 + lineGap + 8;
+
+    // Vẽ nền mờ bo góc cho cả 2 dòng
+    const bgWidth = Math.max(metrics1.width, metrics2.width) + padding*2;
+    const bgX = w - bgWidth - 8;
+    const bgY = h - totalHeight - 8;
+    const bgHeight = totalHeight;
+    ctx.globalAlpha = 0.50;
+    ctx.fillStyle = "#222";
+    roundRect(ctx, bgX, bgY, bgWidth, bgHeight, 10);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Vẽ chữ viền đen, màu trắng lần lượt từng dòng
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = colorStroke;
+    ctx.fillStyle = colorFill;
+    // Dòng 1
+    ctx.strokeText(text1, w - padding -8, h - totalHeight/2 - lineGap/2);
+    ctx.fillText(text1, w - padding -8, h - totalHeight/2 - lineGap/2);
+    // Dòng 2
+    ctx.strokeText(text2, w - padding -8, h - 12);
+    ctx.fillText(text2, w - padding -8, h - 12);
+
     ctx.restore();
 
     // Chuyển ảnh sang URL blob để xem và tải về
@@ -449,6 +485,21 @@
       downloadPhotoBtn.style.display = "inline-block";
     }, "image/png");
   });
+
+  // Vẽ bo góc cho nền chữ
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.lineTo(x+w-r, y);
+    ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+    ctx.lineTo(x+w, y+h-r);
+    ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+    ctx.lineTo(x+r, y+h);
+    ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+    ctx.lineTo(x, y+r);
+    ctx.quadraticCurveTo(x, y, x+r, y);
+    ctx.closePath();
+  }
 
   // Khi ngưng preview thì ẩn vùng ảnh chụp
   stopPreviewBtn.addEventListener('click', function(){
