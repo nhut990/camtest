@@ -50,6 +50,13 @@
     border: 1px solid #ccc;
     background: #fff;
   }
+  #photoImg {
+    cursor: pointer;
+    transition: box-shadow 0.2s;
+  }
+  #photoImg:hover {
+    box-shadow: 0 0 0 3px #1976d2;
+  }
 </style>
 </head>
 <body>
@@ -76,7 +83,7 @@
     <div id="photoBlock">
       <!-- Canvas chỉ dùng xử lý, không hiển thị -->
       <canvas id="photoCanvas" style="display:none"></canvas>
-      <img id="photoImg" style="display:none" />
+      <img id="photoImg" style="display:none" title="Bấm để xem ảnh kích thước lớn ở tab mới"/>
       <a id="downloadPhotoBtn" style="display:none;padding:8px;border-radius:6px;text-decoration:none;border:1px solid #cfcfcf;background:#fff;color:#111" download="photo.png">Tải ảnh về</a>
     </div>
 
@@ -460,6 +467,13 @@
   // Cập nhật trạng thái nút chụp khi có video
   videoPreview.addEventListener('loadeddata', updateCaptureBtnState);
   videoPreview.addEventListener('emptied', updateCaptureBtnState);
+
+  // Tính năng: click vào ảnh mở tab mới xem ảnh lớn
+  photoImg.addEventListener('click', function(){
+    if(photoImg.src) {
+      window.open(photoImg.src, '_blank');
+    }
+  });
 
   updateCaptureBtnState();
 })();
