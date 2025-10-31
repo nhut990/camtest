@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Kiểm tra Camera & Micro - Test trực tiếp trên Web</title>
+<style>
+  body{
+    font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;
+    line-height:1.4;
+    padding:18px;
+    background:#f7f7f9;
+    color:#111;
+  }
+  h1{font-size:1.2rem;margin:0 0 10px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  select,button{
+    padding:8px;border-radius:6px;border:1px solid #cfcfcf;background:white
+  }
+  button{cursor:pointer}
+  button:disabled{opacity:0.5;cursor:not-allowed}
+  video{width:100%;max-width:560px;border-radius:8px;background:#000}
+  .controls{display:flex;gap:8px;flex-wrap:wrap}
+  .meter{width:200px;height:24px;border-radius:6px;background:#eee;overflow:hidden;position:relative}
+  .meter>.level{position:absolute;left:0;top:0;height:100%;width:0%;background:linear-gradient(90deg,#4caf50,#ffeb3b)}
+  .panel{margin-top:12px;max-width:760px}
+  .small{font-size:0.9rem;color:#444}
+  .note{font-size:0.85rem;color:#444;margin-top:8px}
+  audio{display:block;margin-top:8px}
+  .timer{padding:6px 8px;border-radius:6px;background:#fff;border:1px solid #ddd}
+  .note b{color:#000}
+  hr{margin:14px 0;border:0;border-top:1px solid #ddd}
+</style>
+</head>
+<body>
+  <h1>Trang kiểm tra Camera & Micro (Web)</h1>
+
+  <div class="panel">
+    <div class="row">
+      <label>
+        Camera:
+        <select id="cameraSelect"></select>
+      </label>
+
+      <label>
+        Micro:
+        <select id="micSelect"></select>
+      </label>
+
+      <div style="display:flex;align-items:center;gap:8px">
+        <button id="startPreviewBtn">Bắt đầu Preview</button>
+        <button id="stopPreviewBtn" disabled>Ngưng Preview</button>
+      </div>
+    </div>
+
+    <video id="videoPreview" playsinline autoplay muted></video>
+
+    <div class="note">
+      ⚠️ <b>Lưu ý:</b> Trình duyệt có thể yêu cầu quyền truy cập <b>camera</b> và <b>micro</b>. 
+      Tính năng này chỉ hoạt động khi bạn <b>chọn Cho phép</b>.
+    </div>
+
+    <div class="row" style="align-items:center;margin-top:12px">
+      <div class="small">Mức âm thanh (camera/micro):</div>
+      <div class="meter" title="Audio level (camera)"><div class="level" id="meterLevel"></div></div>
+      <div class="timer" id="levelDb">— dB</div>
+    </div>
+
+    <hr />
+
+    <div class="row" style="align-items:center">
+      <div class="small">Mức âm thanh khi ghi âm:</div>
+      <div class="meter" title="Audio level (record)"><div class="level" id="recMeterLevel"></div></div>
+      <div class="timer" id="recLevelDb">— dB</div>
+    </div>
+
+    <div style="margin-top:12px" class="controls">
+      <button id="startRecBtn">Bắt đầu Ghi âm</button>
+      <button id="stopRecBtn" disabled>Ngưng Ghi</button>
+      <button id="playRecBtn" disabled>Phát Lại</button>
+      <a id="downloadLink" style="display:inline-block;padding:8px;border-radius:6px;text-decoration:none;border:1px solid #cfcfcf;background:#fff;color:#111" download="recording.webm">Tải về</a>
+      <div id="recTimer" class="timer">00:00</div>
+    </div>
+
+    <audio id="playback" controls></audio>
+
+    <div class="note">Kết quả ghi âm có thể phát lại và tải về. Một số trình duyệt (như iOS) chỉ cho phát khi có thao tác người dùng.</div>
+  </div>
+
+<script>
+(async function(){
+  const cameraSelect=document.getElementById('cameraSelect');
+  const micSelect=document.getElementById('micSelect');
+  const startPreviewBtn=document.getElementById('startPreviewBtn');
+  const stopPreviewBtn=document.getElementById('stopPreviewBtn');
+  const videoPreview=document.getElementById('videoPreview');
+  const meterLevel=document.getElementById('meterLevel');
+  const levelDb=document.getElementById('levelDb');
+  const recMeterLevel=document.getElementById('recMeterLevel');
+  const recLevelDb=document.getElementById('recLevelDb');
+  const startRecBtn=document.getElementById('startRecBtn');
+  const stopRecBtn=document.getElementById('stopRecBtn');
+  const playRecBtn=document.getElementById('playRecBtn');
+  const downloadLink=document.getElementById('downloadLink');
+  const playback=document.getElementById('playback');
+  const recTimer=document.getElementById('recTimer');
+
+  let currentStream=null;
+  let audioContext=null;
+  let analyser=null;
+  let rafId=null;
+  let mediaRecorder=null;
+  let recordedChunks=[];
+  let recordingStart=null;
+  let recTimerInterval=null;
+  let recAnalyser=null;
+  let recAudioCtx=null;
+  let recRafId=null;
+
+  async function updateDeviceList(){
+    try{
+      const devices=await navigator.mediaDevices.enumerateDevices();
+      const cams=devices.filter(d=>d.kind==='videoinput');
+      const mics=devices.filter(d=>d.kind==='audioinput');
+
+      cameraSelect.innerHTML=cams.map(c=>`<option value="${c.deviceId}">${c.label||'Camera '+(cams.indexOf(c)+1)}</option>`).join('') || '<option value="">(Không có camera)</option>';
+      micSelect.innerHTML=mics.map(m=>`<option value="${m.deviceId}">${m.label||'Micro '+(mics.indexOf(m)+1)}</option>`).join('') || '<option value="">(Không có micro)</option>';
+    }catch(err){
+      console.warn('Không thể liệt kê thiết bị:',err);
+    }
+  }
+
+  async function startPreview(){
+    stopPreview();
+    const constraints={
+      audio: micSelect.value?{deviceId:{exact:micSelect.value}}:true,
+      video: cameraSelect.value?{deviceId:{exact:cameraSelect.value}}:{facingMode:'user'}
+    };
+    try{
+      currentStream=await navigator.mediaDevices.getUserMedia(constraints);
+
+      // ✅ Lấy lại ID thật của camera đang dùng
+      const activeVideoTrack=currentStream.getVideoTracks()[0];
+      if(activeVideoTrack && activeVideoTrack.getSettings){
+        const usedDeviceId=activeVideoTrack.getSettings().deviceId;
+        if(usedDeviceId) cameraSelect.value=usedDeviceId;
+      }
+
+      if(currentStream.getVideoTracks().length){
+        videoPreview.srcObject=currentStream;
+        videoPreview.muted=true;
+        await videoPreview.play().catch(()=>{});
+        stopPreviewBtn.disabled=false;
+        startPreviewBtn.disabled=true; // 🔸 Mờ đi khi đang xem preview
+      }else videoPreview.srcObject=null;
+
+      setupAudioMeter(currentStream);
+      await updateDeviceList();
+    }catch(err){
+      alert('Lỗi khi truy cập camera/micro: '+(err.message||err.name));
+    }
+  }
+
+  function stopPreview(){
+    if(currentStream){currentStream.getTracks().forEach(t=>t.stop());currentStream=null;}
+    if(videoPreview){videoPreview.pause();videoPreview.srcObject=null;}
+    disconnectAudioMeter();
+    stopPreviewBtn.disabled=true;
+    startPreviewBtn.disabled=false; // 🔸 Sáng lại khi ngừng preview
+  }
+
+  function setupAudioMeter(stream){
+    disconnectAudioMeter();
+    if(!stream)return;
+    const audioTracks=stream.getAudioTracks();
+    if(!audioTracks.length)return;
+    audioContext=new (window.AudioContext||window.webkitAudioContext)();
+    const source=audioContext.createMediaStreamSource(new MediaStream(audioTracks));
+    analyser=audioContext.createAnalyser();
+    analyser.fftSize=2048;
+    source.connect(analyser);
+    const data=new Uint8Array(analyser.fftSize);
+    function update(){
+      analyser.getByteTimeDomainData(data);
+      let sum=0;
+      for(let i=0;i<data.length;i++){const v=(data[i]-128)/128;sum+=v*v;}
+      const rms=Math.sqrt(sum/data.length);
+      const db=20*Math.log10(rms||1e-8);
+      const pct=Math.min(100,Math.max(0,(rms*300)));
+      meterLevel.style.width=pct+'%';
+      levelDb.textContent=(db===-160?'— dB':db.toFixed(1)+' dB');
+      rafId=requestAnimationFrame(update);
+    }
+    update();
+  }
+
+  function disconnectAudioMeter(){
+    if(rafId){cancelAnimationFrame(rafId);rafId=null;}
+    if(analyser){analyser.disconnect();analyser=null;}
+    if(audioContext){try{audioContext.close();}catch(e){}audioContext=null;}
+    meterLevel.style.width='0%';
+    levelDb.textContent='— dB';
+  }
+
+  function setupRecMeter(stream){
+    if(!stream)return;
+    recAudioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const source=recAudioCtx.createMediaStreamSource(stream);
+    recAnalyser=recAudioCtx.createAnalyser();
+    recAnalyser.fftSize=2048;
+    source.connect(recAnalyser);
+    const data=new Uint8Array(recAnalyser.fftSize);
+    function update(){
+      recAnalyser.getByteTimeDomainData(data);
+      let sum=0;
+      for(let i=0;i<data.length;i++){const v=(data[i]-128)/128;sum+=v*v;}
+      const rms=Math.sqrt(sum/data.length);
+      const db=20*Math.log10(rms||1e-8);
+      const pct=Math.min(100,Math.max(0,(rms*300)));
+      recMeterLevel.style.width=pct+'%';
+      recLevelDb.textContent=(db===-160?'— dB':db.toFixed(1)+' dB');
+      recRafId=requestAnimationFrame(update);
+    }
+    update();
+  }
+
+  function stopRecMeter(){
+    if(recRafId){cancelAnimationFrame(recRafId);recRafId=null;}
+    if(recAnalyser){recAnalyser.disconnect();recAnalyser=null;}
+    if(recAudioCtx){try{recAudioCtx.close();}catch(e){}recAudioCtx=null;}
+    recMeterLevel.style.width='0%';
+    recLevelDb.textContent='— dB';
+  }
+
+  function startRecording(){
+    const constraints={audio: micSelect.value?{deviceId:{exact:micSelect.value}}:true};
+    navigator.mediaDevices.getUserMedia(constraints).then(stream=>{
+      recordedChunks=[];
+      const options={};
+      if(MediaRecorder.isTypeSupported('audio/webm;codecs=opus'))options.mimeType='audio/webm;codecs=opus';
+      else if(MediaRecorder.isTypeSupported('audio/ogg;codecs=opus'))options.mimeType='audio/ogg;codecs=opus';
+      mediaRecorder=new MediaRecorder(stream,options);
+      mediaRecorder.ondataavailable=e=>{if(e.data&&e.data.size)recordedChunks.push(e.data);};
+      mediaRecorder.onstop=()=>{
+        const blob=new Blob(recordedChunks,{type:recordedChunks[0]?.type||'audio/webm'});
+        const url=URL.createObjectURL(blob);
+        playback.src=url;
+        playRecBtn.disabled=false;
+        downloadLink.href=url;
+        downloadLink.download='recording.'+(blob.type.includes('ogg')?'ogg':'webm');
+        stream.getTracks().forEach(t=>t.stop());
+        stopRecMeter();
+      };
+      setupRecMeter(stream);
+      mediaRecorder.start();
+      recordingStart=Date.now();
+      startRecBtn.disabled=true;
+      stopRecBtn.disabled=false;
+      playRecBtn.disabled=true;
+      recTimer.textContent='00:00';
+      recTimerInterval=setInterval(()=>{
+        const s=Math.floor((Date.now()-recordingStart)/1000);
+        const mm=String(Math.floor(s/60)).padStart(2,'0');
+        const ss=String(s%60).padStart(2,'0');
+        recTimer.textContent=`${mm}:${ss}`;
+      },250);
+    }).catch(err=>{
+      alert('Không thể truy cập micro để ghi âm: '+(err.message||err.name));
+    });
+  }
+
+  function stopRecording(){
+    if(mediaRecorder&&mediaRecorder.state!=='inactive')mediaRecorder.stop();
+    if(recTimerInterval){clearInterval(recTimerInterval);recTimerInterval=null;}
+    startRecBtn.disabled=false;
+    stopRecBtn.disabled=true;
+  }
+
+  playRecBtn.addEventListener('click',()=>{if(playback.src)playback.play().catch(()=>{});});
+  startPreviewBtn.addEventListener('click',startPreview);
+  stopPreviewBtn.addEventListener('click',stopPreview);
+  startRecBtn.addEventListener('click',startRecording);
+  stopRecBtn.addEventListener('click',stopRecording);
+
+  navigator.mediaDevices&&navigator.mediaDevices.addEventListener&&navigator.mediaDevices.addEventListener('devicechange',updateDeviceList);
+  await updateDeviceList();
+  window.addEventListener('beforeunload',()=>{stopPreview();});
+})();
+</script>
+</body>
+</html>
