@@ -11,17 +11,17 @@
   select,button{padding:8px;border-radius:6px;border:1px solid #cfcfcf;}
   button,
   .fullscreen-btn {
-    background: #e3f2fd;
-    color: #1976d2;
-    border: 1px solid #90caf9;
-    font-weight: 500;
+    background: #ff9800;
+    color: #fff;
+    border: 1.5px solid #e65100;
+    font-weight: 600;
     transition: background 0.15s, box-shadow 0.2s;
   }
   button:hover,
   .fullscreen-btn:hover {
-    background: #bbdefb;
-    box-shadow: 0 0 0 2px #1976d2;
-    color: #0d47a1;
+    background: #ffa726;
+    box-shadow: 0 0 0 2px #e65100;
+    color: #fff;
   }
   button:disabled {
     opacity: 0.5;
@@ -40,7 +40,13 @@
   audio{display:block;margin-top:8px}
   .timer{padding:6px 8px;border-radius:6px;background:#fff;border:1px solid #ddd}
   .note b{color:#000}
-  hr{margin:14px 0;border:0;border-top:1px solid #ddd}
+  hr {
+    margin: 18px 0;
+    border: none;
+    border-top: 5px solid #ff9800;
+    border-radius: 2px;
+    box-shadow: 0 2px 6px rgba(255, 152, 0, 0.10);
+  }
   .footer{margin-top:40px;text-align:center;color:#555;font-size:0.95rem;}
   .footer a{color:#1976d2;text-decoration:none;font-weight:500;}
   .credit{margin-top:4px;font-size:0.92rem;color:#888;}
@@ -65,7 +71,7 @@
     max-width: 240px;
     max-height: 180px;
     border-radius: 8px;
-    border: 1px solid #ccc;
+    border: 1.5px solid #ffa726;
     background: #fff;
   }
   #photoImg {
@@ -73,7 +79,7 @@
     transition: box-shadow 0.2s;
   }
   #photoImg:hover {
-    box-shadow: 0 0 0 3px #1976d2;
+    box-shadow: 0 0 0 3px #ff9800;
   }
   .fullscreen-btn {
     margin-left: 6px;
@@ -137,17 +143,17 @@
       <video id="videoPreview" playsinline autoplay muted></video>
       <button class="fullscreen-btn" id="fullscreenBtn" title="Toàn màn hình video">
         <svg class="fullscreen-icon" viewBox="0 0 50 50">
-          <polyline points="17,6 6,6 6,17" style="fill:none;stroke:#111;stroke-width:5"/>
-          <polyline points="33,6 44,6 44,17" style="fill:none;stroke:#111;stroke-width:5"/>
-          <polyline points="17,44 6,44 6,33" style="fill:none;stroke:#111;stroke-width:5"/>
-          <polyline points="33,44 44,44 44,33" style="fill:none;stroke:#111;stroke-width:5"/>
+          <polyline points="17,6 6,6 6,17" style="fill:none;stroke:#e65100;stroke-width:5"/>
+          <polyline points="33,6 44,6 44,17" style="fill:none;stroke:#e65100;stroke-width:5"/>
+          <polyline points="17,44 6,44 6,33" style="fill:none;stroke:#e65100;stroke-width:5"/>
+          <polyline points="33,44 44,44 44,33" style="fill:none;stroke:#e65100;stroke-width:5"/>
         </svg>
       </button>
     </div>
     <div id="photoBlock">
       <canvas id="photoCanvas" style="display:none"></canvas>
       <img id="photoImg" style="display:none" title="Bấm để xem ảnh kích thước lớn ở tab mới"/>
-      <a id="downloadPhotoBtn" style="display:none;padding:8px;border-radius:6px;text-decoration:none;border:1px solid #cfcfcf;background:#fff;color:#111" download="photo.png">Tải ảnh về</a>
+      <a id="downloadPhotoBtn" style="display:none;padding:8px;border-radius:6px;text-decoration:none;border:1.5px solid #ffa726;background:#fff;color:#111" download="photo.png">Tải ảnh về</a>
     </div>
     <div class="note">
       ⚠️ <b>Lưu ý:</b> Trình duyệt có thể yêu cầu quyền truy cập <b>camera</b> và <b>micro</b>. 
@@ -172,7 +178,7 @@
         class="disabled-link"
         aria-disabled="true"
         tabindex="-1"
-        style="display:inline-block;padding:8px;border-radius:6px;text-decoration:none;border:1px solid #cfcfcf;background:#fff;color:#111"
+        style="display:inline-block;padding:8px;border-radius:6px;text-decoration:none;border:1.5px solid #ffa726;background:#fff;color:#111"
         download="recording.webm"
         href="javascript:void(0)"
       >Tải về</a>
@@ -494,7 +500,7 @@
     ctx.font = "bold 36px 'Segoe UI', Arial, Helvetica, sans-serif";
     ctx.textBaseline = "bottom";
     ctx.textAlign = "right";
-    const colorStroke = "#222";
+    const colorStroke = "#e65100";
     const colorFill = "#fff";
     const metrics1 = ctx.measureText(text1);
     const metrics2 = ctx.measureText(text2);
@@ -507,7 +513,7 @@
     const bgY = h - totalHeight - 16;
     const bgHeight = totalHeight;
     ctx.globalAlpha = 0.50;
-    ctx.fillStyle = "#222";
+    ctx.fillStyle = "#e65100";
     roundRect(ctx, bgX, bgY, bgWidth, bgHeight, 20);
     ctx.fill();
     ctx.globalAlpha = 1;
@@ -602,11 +608,11 @@
     if (isFull) {
       videoContainer.classList.add('fullscreen');
       fullscreenBtn.title = "Thoát toàn màn hình";
-      fullscreenBtn.style.background = "#e3f2fd";
+      fullscreenBtn.style.background = "#ffa726";
     } else {
       videoContainer.classList.remove('fullscreen');
       fullscreenBtn.title = "Toàn màn hình video";
-      fullscreenBtn.style.background = "#e3f2fd";
+      fullscreenBtn.style.background = "#ff9800";
     }
   }
   document.addEventListener('fullscreenchange', onFullscreenChange);
