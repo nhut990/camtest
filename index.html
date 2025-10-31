@@ -74,6 +74,7 @@
 
     <!-- Vùng hiển thị ảnh đã chụp -->
     <div id="photoBlock">
+      <!-- Canvas chỉ dùng xử lý, không hiển thị -->
       <canvas id="photoCanvas" style="display:none"></canvas>
       <img id="photoImg" style="display:none" />
       <a id="downloadPhotoBtn" style="display:none;padding:8px;border-radius:6px;text-decoration:none;border:1px solid #cfcfcf;background:#fff;color:#111" download="photo.png">Tải ảnh về</a>
@@ -154,6 +155,8 @@
   let recAnalyser=null;
   let recAudioCtx=null;
   let recRafId=null;
+  // Để quản lý url ảnh đã tạo, tránh memory leak
+  let lastPhotoUrl=null;
 
   function setDownloadLinkDisabled(state) {
     if(state){
@@ -379,6 +382,7 @@
     stopPreview();
     stopRecording();
     setDownloadLinkDisabled(true);
+    if(lastPhotoUrl) URL.revokeObjectURL(lastPhotoUrl);
   });
 
   // =================== PHẦN CHỤP ẢNH ===================
@@ -390,27 +394,50 @@
     photoCanvas.style.display = "none";
     photoImg.style.display = "none";
     downloadPhotoBtn.style.display = "none";
+    if(lastPhotoUrl) {
+      URL.revokeObjectURL(lastPhotoUrl);
+      lastPhotoUrl = null;
+    }
+    photoImg.src = "";
   }
 
   captureBtn.addEventListener('click', function(){
     if(!videoPreview.srcObject) return;
     const video = videoPreview;
-    // Lấy kích thước thực tế từ video
     const w = video.videoWidth || 320;
     const h = video.videoHeight || 240;
     // Set kích thước canvas
     photoCanvas.width = w;
     photoCanvas.height = h;
-    // Vẽ ảnh lên canvas
+    // Vẽ frame video lên canvas
     const ctx = photoCanvas.getContext('2d');
     ctx.drawImage(video, 0, 0, w, h);
-    // Hiển thị canvas (nếu muốn dùng cho xử lý)
-    photoCanvas.style.display = "block";
+
+    // Thêm chữ vào góc phải dưới
+    const text = "Created by Minh Nhut";
+    ctx.save();
+    ctx.font = "bold 16px Arial";
+    ctx.textBaseline = "bottom";
+    ctx.textAlign = "right";
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    // Vẽ nền chữ mờ
+    const metrics = ctx.measureText(text);
+    const padding = 8;
+    const textHeight = 20;
+    ctx.fillRect(w - metrics.width - padding - 4, h - textHeight - 8, metrics.width + padding, textHeight + 8);
+    // Vẽ chữ trắng
+    ctx.fillStyle = "#fff";
+    ctx.fillText(text, w - 8, h - 12);
+    ctx.restore();
+
     // Chuyển ảnh sang URL blob để xem và tải về
     photoCanvas.toBlob(function(blob){
+      if(lastPhotoUrl) URL.revokeObjectURL(lastPhotoUrl);
       const url = URL.createObjectURL(blob);
+      lastPhotoUrl = url;
       photoImg.src = url;
       photoImg.style.display = "block";
+      photoCanvas.style.display = "none"; // Ẩn canvas, chỉ hiện 1 ảnh duy nhất
       downloadPhotoBtn.href = url;
       downloadPhotoBtn.style.display = "inline-block";
     }, "image/png");
