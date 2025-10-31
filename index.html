@@ -25,7 +25,6 @@
   .footer{margin-top:40px;text-align:center;color:#555;font-size:0.95rem;}
   .footer a{color:#1976d2;text-decoration:none;font-weight:500;}
   .credit{margin-top:4px;font-size:0.92rem;color:#888;}
-  /* Style for disabled download link */
   .disabled-link {
     pointer-events: none;
     opacity: 0.5;
@@ -34,6 +33,22 @@
     border-color: #eee !important;
     background: #f9f9f9 !important;
     text-decoration: none !important;
+  }
+  /* Style for photo capture area */
+  #photoBlock {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  #photoCanvas, #photoImg {
+    max-width: 240px;
+    max-height: 180px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    background: #fff;
   }
 </style>
 </head>
@@ -52,9 +67,18 @@
       <div style="display:flex;align-items:center;gap:8px">
         <button id="startPreviewBtn">Bắt đầu Preview</button>
         <button id="stopPreviewBtn" disabled>Ngưng Preview</button>
+        <button id="captureBtn" disabled>Chụp ảnh</button>
       </div>
     </div>
     <video id="videoPreview" playsinline autoplay muted></video>
+
+    <!-- Vùng hiển thị ảnh đã chụp -->
+    <div id="photoBlock">
+      <canvas id="photoCanvas" style="display:none"></canvas>
+      <img id="photoImg" style="display:none" />
+      <a id="downloadPhotoBtn" style="display:none;padding:8px;border-radius:6px;text-decoration:none;border:1px solid #cfcfcf;background:#fff;color:#111" download="photo.png">Tải ảnh về</a>
+    </div>
+
     <div class="note">
       ⚠️ <b>Lưu ý:</b> Trình duyệt có thể yêu cầu quyền truy cập <b>camera</b> và <b>micro</b>. 
       Tính năng này chỉ hoạt động khi bạn <b>chọn Cho phép</b>.
@@ -113,6 +137,11 @@
   const downloadLink=document.getElementById('downloadLink');
   const playback=document.getElementById('playback');
   const recTimer=document.getElementById('recTimer');
+  // Photo capture elements
+  const captureBtn=document.getElementById('captureBtn');
+  const photoCanvas=document.getElementById('photoCanvas');
+  const photoImg=document.getElementById('photoImg');
+  const downloadPhotoBtn=document.getElementById('downloadPhotoBtn');
 
   let currentStream=null;
   let audioContext=null;
@@ -183,6 +212,7 @@
         await videoPreview.play().catch(()=>{});
         stopPreviewBtn.disabled=false;
         startPreviewBtn.disabled=true;
+        updateCaptureBtnState();
       }else videoPreview.srcObject=null;
 
       setupAudioMeter(currentStream);
@@ -202,6 +232,8 @@
     disconnectAudioMeter();
     stopPreviewBtn.disabled=true;
     startPreviewBtn.disabled=false;
+    updateCaptureBtnState();
+    hidePhoto();
   }
 
   function setupAudioMeter(stream){
@@ -329,7 +361,10 @@
   startRecBtn.addEventListener('click',startRecording);
   stopRecBtn.addEventListener('click',stopRecording);
 
-  cameraSelect.addEventListener('change',()=>{if(currentStream)startPreview();});
+  cameraSelect.addEventListener('change',()=>{
+    hidePhoto();
+    if(currentStream)startPreview();
+  });
   micSelect.addEventListener('change',()=>{
     if(currentStream)startPreview();
     if(mediaRecorder && mediaRecorder.state==='recording'){stopRecording();startRecording();}
@@ -345,6 +380,61 @@
     stopRecording();
     setDownloadLinkDisabled(true);
   });
+
+  // =================== PHẦN CHỤP ẢNH ===================
+  function updateCaptureBtnState() {
+    captureBtn.disabled = !(currentStream && videoPreview.srcObject);
+  }
+
+  function hidePhoto() {
+    photoCanvas.style.display = "none";
+    photoImg.style.display = "none";
+    downloadPhotoBtn.style.display = "none";
+  }
+
+  captureBtn.addEventListener('click', function(){
+    if(!videoPreview.srcObject) return;
+    const video = videoPreview;
+    // Lấy kích thước thực tế từ video
+    const w = video.videoWidth || 320;
+    const h = video.videoHeight || 240;
+    // Set kích thước canvas
+    photoCanvas.width = w;
+    photoCanvas.height = h;
+    // Vẽ ảnh lên canvas
+    const ctx = photoCanvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, w, h);
+    // Hiển thị canvas (nếu muốn dùng cho xử lý)
+    photoCanvas.style.display = "block";
+    // Chuyển ảnh sang URL blob để xem và tải về
+    photoCanvas.toBlob(function(blob){
+      const url = URL.createObjectURL(blob);
+      photoImg.src = url;
+      photoImg.style.display = "block";
+      downloadPhotoBtn.href = url;
+      downloadPhotoBtn.style.display = "inline-block";
+    }, "image/png");
+  });
+
+  // Khi ngưng preview thì ẩn vùng ảnh chụp
+  stopPreviewBtn.addEventListener('click', function(){
+    hidePhoto();
+  });
+  // Khi bắt đầu preview lại thì reset vùng ảnh chụp
+  startPreviewBtn.addEventListener('click', function(){
+    hidePhoto();
+  });
+
+  // Khi thay đổi camera thì reset vùng ảnh chụp
+  cameraSelect.addEventListener('change', function(){
+    hidePhoto();
+  });
+
+  // Cập nhật trạng thái nút chụp khi có video
+  videoPreview.addEventListener('loadeddata', updateCaptureBtnState);
+  videoPreview.addEventListener('emptied', updateCaptureBtnState);
+
+  updateCaptureBtnState();
 })();
 </script>
 </body>
