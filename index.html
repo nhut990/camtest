@@ -25,6 +25,16 @@
   .footer{margin-top:40px;text-align:center;color:#555;font-size:0.95rem;}
   .footer a{color:#1976d2;text-decoration:none;font-weight:500;}
   .credit{margin-top:4px;font-size:0.92rem;color:#888;}
+  /* Style for disabled download link */
+  .disabled-link {
+    pointer-events: none;
+    opacity: 0.5;
+    cursor: not-allowed;
+    color: #999 !important;
+    border-color: #eee !important;
+    background: #f9f9f9 !important;
+    text-decoration: none !important;
+  }
 </style>
 </head>
 <body>
@@ -64,7 +74,14 @@
       <button id="startRecBtn">Bắt đầu Ghi âm</button>
       <button id="stopRecBtn" disabled>Ngưng Ghi</button>
       <button id="playRecBtn" disabled>Phát Lại</button>
-      <a id="downloadLink" style="display:inline-block;padding:8px;border-radius:6px;text-decoration:none;border:1px solid #cfcfcf;background:#fff;color:#111" download="recording.webm">Tải về</a>
+      <a id="downloadLink" 
+        class="disabled-link"
+        aria-disabled="true"
+        tabindex="-1"
+        style="display:inline-block;padding:8px;border-radius:6px;text-decoration:none;border:1px solid #cfcfcf;background:#fff;color:#111"
+        download="recording.webm"
+        href="javascript:void(0)"
+      >Tải về</a>
       <div id="recTimer" class="timer">00:00</div>
     </div>
     <audio id="playback" controls></audio>
@@ -108,6 +125,20 @@
   let recAnalyser=null;
   let recAudioCtx=null;
   let recRafId=null;
+
+  function setDownloadLinkDisabled(state) {
+    if(state){
+      downloadLink.classList.add('disabled-link');
+      downloadLink.setAttribute('aria-disabled', 'true');
+      downloadLink.setAttribute('tabindex', '-1');
+      downloadLink.href = "javascript:void(0)";
+    }else{
+      downloadLink.classList.remove('disabled-link');
+      downloadLink.setAttribute('aria-disabled', 'false');
+      downloadLink.setAttribute('tabindex', '0');
+      // href sẽ được thiết lập khi có file
+    }
+  }
 
   async function updateDeviceList(){
     try{
@@ -239,6 +270,7 @@
 
   function startRecording(){
     stopRecording();
+    setDownloadLinkDisabled(true);
     const constraints={audio: micSelect.value?{deviceId:{exact:micSelect.value}}:true};
     navigator.mediaDevices.getUserMedia(constraints).then(stream=>{
       recordedChunks=[];
@@ -254,6 +286,7 @@
         playRecBtn.disabled=false;
         downloadLink.href=url;
         downloadLink.download='recording.'+(blob.type.includes('ogg')?'ogg':'webm');
+        setDownloadLinkDisabled(false);
         stream.getTracks().forEach(t=>t.stop());
         stopRecMeter();
       };
@@ -264,7 +297,7 @@
       stopRecBtn.disabled=false;
       playRecBtn.disabled=true;
       recTimer.textContent='00:00';
-      recTimerInterval=setInterval(()=>{
+    recTimerInterval=setInterval(()=>{
         const s=Math.floor((Date.now()-recordingStart)/1000);
         const mm=String(Math.floor(s/60)).padStart(2,'0');
         const ss=String(s%60).padStart(2,'0');
@@ -275,6 +308,7 @@
       stopRecMeter();
       stopRecBtn.disabled=true;
       startRecBtn.disabled=false;
+      setDownloadLinkDisabled(true);
     });
   }
 
@@ -286,6 +320,7 @@
     stopRecBtn.disabled=true;
     startRecBtn.disabled=false;
     stopRecMeter();
+    setDownloadLinkDisabled(true);
   }
 
   playRecBtn.addEventListener('click',()=>{if(playback.src)playback.play().catch(()=>{});});
@@ -302,9 +337,13 @@
 
   navigator.mediaDevices&&navigator.mediaDevices.addEventListener&&navigator.mediaDevices.addEventListener('devicechange',updateDeviceList);
   await updateDeviceList();
+
+  setDownloadLinkDisabled(true); // Khởi tạo trạng thái mờ cho nút tải về
+
   window.addEventListener('beforeunload',()=>{
     stopPreview();
     stopRecording();
+    setDownloadLinkDisabled(true);
   });
 })();
 </script>
