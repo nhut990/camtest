@@ -179,13 +179,13 @@
         aria-disabled="true"
         tabindex="-1"
         style="display:inline-block;padding:8px;border-radius:6px;text-decoration:none;border:1.5px solid #ffa726;background:#fff;color:#111"
-        download="recording.webm"
+        download="recording.wav"
         href="javascript:void(0)"
-      >Tải về</a>
+      >Tải về (.wav)</a>
       <div id="recTimer" class="timer">00:00</div>
     </div>
     <audio id="playback" controls></audio>
-    <div class="note">Kết quả ghi âm có thể phát lại và tải về với định dạng .webm</div>
+    <div class="note">Kết quả ghi âm có thể phát lại và tải về với định dạng <b>.wav</b></div>
   </div>
   <div class="footer">
     <a href="https://nhut990.github.io/">Trang chủ</a>
@@ -211,12 +211,10 @@
   const downloadLink=document.getElementById('downloadLink');
   const playback=document.getElementById('playback');
   const recTimer=document.getElementById('recTimer');
-  // Photo capture elements
   const captureBtn=document.getElementById('captureBtn');
   const photoCanvas=document.getElementById('photoCanvas');
   const photoImg=document.getElementById('photoImg');
   const downloadPhotoBtn=document.getElementById('downloadPhotoBtn');
-  // Fullscreen elements
   const fullscreenBtn=document.getElementById('fullscreenBtn');
   const videoContainer=document.getElementById('videoContainer');
 
@@ -246,7 +244,6 @@
       downloadLink.setAttribute('tabindex', '0');
     }
   }
-
   async function updateDeviceList(){
     try{
       const devices=await navigator.mediaDevices.enumerateDevices();
@@ -258,11 +255,8 @@
       micSelect.innerHTML=mics.map(m=>`<option value="${m.deviceId}">${m.label||'Micro '+(mics.indexOf(m)+1)}</option>`).join('') || '<option value="">(Không có micro)</option>';
       if(cams.some(c=>c.deviceId===prevCam)) cameraSelect.value=prevCam;
       if(mics.some(m=>m.deviceId===prevMic)) micSelect.value=prevMic;
-    }catch(err){
-      console.warn('Không thể liệt kê thiết bị:',err);
-    }
+    }catch(err){console.warn('Không thể liệt kê thiết bị:',err);}
   }
-
   async function startPreview(){
     stopPreview();
     const constraints={
@@ -285,10 +279,7 @@
         stopPreviewBtn.disabled=false;
         startPreviewBtn.disabled=true;
         updateCaptureBtnState();
-        setTimeout(()=>{
-          // Log độ phân giải thực tế
-          console.log('Video thực tế:', videoPreview.videoWidth+"x"+videoPreview.videoHeight);
-        },500);
+        setTimeout(()=>{console.log('Video thực tế:', videoPreview.videoWidth+"x"+videoPreview.videoHeight);},500);
       }else videoPreview.srcObject=null;
       setupAudioMeter(currentStream);
       await updateDeviceList();
@@ -297,7 +288,6 @@
       stopPreview();
     }
   }
-
   function stopPreview(){
     if(currentStream){
       currentStream.getTracks().forEach(t=>t.stop());
@@ -310,7 +300,6 @@
     updateCaptureBtnState();
     hidePhoto();
   }
-
   function setupAudioMeter(stream){
     disconnectAudioMeter();
     if(!stream)return;
@@ -335,7 +324,6 @@
     }
     update();
   }
-
   function disconnectAudioMeter(){
     if(rafId){cancelAnimationFrame(rafId);rafId=null;}
     if(analyser){analyser.disconnect();analyser=null;}
@@ -343,7 +331,6 @@
     meterLevel.style.width='0%';
     levelDb.textContent='— dB';
   }
-
   function setupRecMeter(stream){
     stopRecMeter();
     if(!stream)return;
@@ -366,7 +353,6 @@
     }
     update();
   }
-
   function stopRecMeter(){
     if(recRafId){cancelAnimationFrame(recRafId);recRafId=null;}
     if(recAnalyser){recAnalyser.disconnect();recAnalyser=null;}
@@ -375,61 +361,136 @@
     recLevelDb.textContent='— dB';
   }
 
-  function startRecording(){
+  // ================== GHI ÂM RA .WAV ==================
+  function encodeWAV(samples, sampleRate, numChannels){
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    function writeString(view, offset, str) {
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    }
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numChannels * 2, true);
+    view.setUint16(32, numChannels * 2, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+    let idx = 44;
+    for (let i = 0; i < samples.length; i++) {
+      let s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(idx, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      idx += 2;
+    }
+    return new Blob([buffer], { type: 'audio/wav' });
+  }
+
+  function startRecording() {
     stopRecording();
     setDownloadLinkDisabled(true);
-    const constraints={audio: micSelect.value?{deviceId:{exact:micSelect.value}}:true};
-    navigator.mediaDevices.getUserMedia(constraints).then(stream=>{
-      recordedChunks=[];
-      const options={};
-      if(MediaRecorder.isTypeSupported('audio/webm;codecs=opus'))options.mimeType='audio/webm;codecs=opus';
-      else if(MediaRecorder.isTypeSupported('audio/ogg;codecs=opus'))options.mimeType='audio/ogg;codecs=opus';
-      mediaRecorder=new MediaRecorder(stream,options);
-      mediaRecorder.ondataavailable=e=>{if(e.data&&e.data.size)recordedChunks.push(e.data);};
-      mediaRecorder.onstop=()=>{
-        const blob=new Blob(recordedChunks,{type:recordedChunks[0]?.type||'audio/webm'});
-        const url=URL.createObjectURL(blob);
-        playback.src=url;
-        playRecBtn.disabled=false;
-        downloadLink.href=url;
-        downloadLink.download='recording.'+(blob.type.includes('ogg')?'ogg':'webm');
-        setDownloadLinkDisabled(false);
-        stream.getTracks().forEach(t=>t.stop());
-        stopRecMeter();
+    const constraints = { audio: micSelect.value ? { deviceId: { exact: micSelect.value } } : true };
+    navigator.mediaDevices.getUserMedia(constraints).then(stream => {
+      let audioContextLocal = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioContextLocal.createMediaStreamSource(stream);
+      let scriptNode = audioContextLocal.createScriptProcessor(4096, source.channelCount, source.channelCount);
+
+      let sampleRate = audioContextLocal.sampleRate;
+      let numChannels = source.channelCount;
+      let channelsBuffers = [];
+      for(let i=0; i<numChannels; i++) channelsBuffers.push([]);
+
+      scriptNode.onaudioprocess = function(e) {
+        for (let ch = 0; ch < numChannels; ++ch) {
+          channelsBuffers[ch].push(new Float32Array(e.inputBuffer.getChannelData(ch)));
+        }
       };
+      source.connect(scriptNode);
+      scriptNode.connect(audioContextLocal.destination);
+
       setupRecMeter(stream);
-      mediaRecorder.start();
-      recordingStart=Date.now();
-      startRecBtn.disabled=true;
-      stopRecBtn.disabled=false;
-      playRecBtn.disabled=true;
-      recTimer.textContent='00:00';
-      recTimerInterval=setInterval(()=>{
-        const s=Math.floor((Date.now()-recordingStart)/1000);
-        const mm=String(Math.floor(s/60)).padStart(2,'0');
-        const ss=String(s%60).padStart(2,'0');
-        recTimer.textContent=`${mm}:${ss}`;
-      },250);
-    }).catch(err=>{
-      alert('Không thể truy cập micro để ghi âm: '+(err.message||err.name));
+
+      mediaRecorder = {
+        state: "recording",
+        stop: function () {
+          scriptNode.disconnect();
+          source.disconnect();
+          audioContextLocal.close();
+
+          function mergeBuffers(buffers) {
+            let length = buffers.reduce((acc, v) => acc + v.length, 0);
+            let result = new Float32Array(length);
+            let offset = 0;
+            for (let b of buffers) {
+              result.set(b, offset);
+              offset += b.length;
+            }
+            return result;
+          }
+          let merged = [];
+          for(let ch=0; ch<numChannels; ch++)
+            merged.push(mergeBuffers(channelsBuffers[ch]));
+
+          let interleaved;
+          if (numChannels === 1) {
+            interleaved = merged[0];
+          } else {
+            const l = merged[0].length;
+            interleaved = new Float32Array(l * numChannels);
+            for(let i=0; i<l; i++) {
+              for(let ch=0; ch<numChannels; ch++){
+                interleaved[i*numChannels+ch] = merged[ch][i];
+              }
+            }
+          }
+          const wavBlob = encodeWAV(interleaved, sampleRate, numChannels);
+          const url = URL.createObjectURL(wavBlob);
+          playback.src = url;
+          playRecBtn.disabled = false;
+          downloadLink.href = url;
+          downloadLink.download = 'recording.wav';
+          setDownloadLinkDisabled(false);
+
+          stream.getTracks().forEach(t => t.stop());
+          stopRecMeter();
+        }
+      };
+
+      recordingStart = Date.now();
+      startRecBtn.disabled = true;
+      stopRecBtn.disabled = false;
+      playRecBtn.disabled = true;
+      recTimer.textContent = '00:00';
+      recTimerInterval = setInterval(() => {
+        const s = Math.floor((Date.now() - recordingStart) / 1000);
+        const mm = String(Math.floor(s / 60)).padStart(2, '0');
+        const ss = String(s % 60).padStart(2, '0');
+        recTimer.textContent = `${mm}:${ss}`;
+      }, 250);
+    }).catch(err => {
+      alert('Không thể truy cập micro để ghi âm: ' + (err.message || err.name));
       stopRecMeter();
-      stopRecBtn.disabled=true;
-      startRecBtn.disabled=false;
+      stopRecBtn.disabled = true;
+      startRecBtn.disabled = false;
       setDownloadLinkDisabled(true);
     });
   }
-
   function stopRecording(){
     if(mediaRecorder && mediaRecorder.state!=='inactive'){
+      mediaRecorder.state = "inactive";
       mediaRecorder.stop();
     }
     if(recTimerInterval){clearInterval(recTimerInterval);recTimerInterval=null;}
     stopRecBtn.disabled=true;
     startRecBtn.disabled=false;
     stopRecMeter();
-    setDownloadLinkDisabled(true);
+    // KHÔNG gọi setDownloadLinkDisabled(true) ở đây, để nút tải về vẫn sáng sau ghi!
   }
-
   playRecBtn.addEventListener('click',()=>{if(playback.src)playback.play().catch(()=>{});});
   startPreviewBtn.addEventListener('click',startPreview);
   stopPreviewBtn.addEventListener('click',stopPreview);
@@ -486,7 +547,6 @@
   captureBtn.addEventListener('click', function(){
     if(!videoPreview.srcObject) return;
     const video = videoPreview;
-    // Độ phân giải thực lưu đúng stream camera:
     const w = video.videoWidth;
     const h = video.videoHeight;
     photoCanvas.width = w;
@@ -535,7 +595,6 @@
       photoCanvas.style.display = "none";
       downloadPhotoBtn.href = url;
       downloadPhotoBtn.style.display = "inline-block";
-      // Log độ phân giải ảnh đã lưu:
       console.log('Ảnh lưu:', w+'x'+h);
     }, "image/png");
   });
@@ -554,21 +613,13 @@
     ctx.closePath();
   }
 
-  stopPreviewBtn.addEventListener('click', function(){
-    hidePhoto();
-  });
-  startPreviewBtn.addEventListener('click', function(){
-    hidePhoto();
-  });
-  cameraSelect.addEventListener('change', function(){
-    hidePhoto();
-  });
+  stopPreviewBtn.addEventListener('click', function(){hidePhoto();});
+  startPreviewBtn.addEventListener('click', function(){hidePhoto();});
+  cameraSelect.addEventListener('change', function(){hidePhoto();});
   videoPreview.addEventListener('loadeddata', updateCaptureBtnState);
   videoPreview.addEventListener('emptied', updateCaptureBtnState);
   photoImg.addEventListener('click', function(){
-    if(photoImg.src) {
-      window.open(photoImg.src, '_blank');
-    }
+    if(photoImg.src) {window.open(photoImg.src, '_blank');}
   });
 
   updateCaptureBtnState();
